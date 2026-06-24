@@ -22,6 +22,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -35,6 +36,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.atan2
+import androidx.core.content.edit
 
 class WalkingMonitorService : Service(), SensorEventListener {
 
@@ -69,6 +71,8 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
     private var serviceForeground = false
     private var monitoringActive = false
+
+    private val KEY_POSTURE_STATS_DATE = "posture_stats_date"
 
     companion object {
         const val ACTION_START = "ACTION_START_MONITORING"
@@ -112,6 +116,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             context = this,
             onStatusChanged = {
                 bleStatus = it
+
                 bleConnected =
                     it.contains("受信中") ||
                             it.contains("接続成功") ||
@@ -127,6 +132,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         )
     }
 
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> startMonitoring()
@@ -156,6 +162,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         return START_STICKY
     }
 
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun startMonitoring() {
         startForegroundIfNeeded("監視中", "歩行を監視しています")
 
@@ -351,6 +358,20 @@ class WalkingMonitorService : Service(), SensorEventListener {
         val ay = values[1]
         val az = values[2]
 
+        val totalG =
+            kotlin.math.sqrt(
+                ax * ax +
+                        ay * ay +
+                        az * az
+            )
+
+        if (totalG > 2.8f) {
+            updateNotification(
+                "転倒検知",
+                "転倒の可能性があります"
+            )
+        }
+
         val rawForwardAngle = Math.toDegrees(
             atan2((-ax).toDouble(), ay.toDouble())
         ).toFloat()
@@ -464,6 +485,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         return activityPermission && locationPermission
     }
 
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun startLocationUpdates() {
         if (!hasRequiredPermissions()) return
 
@@ -921,5 +943,92 @@ object WalkingAppPrefs {
 
     fun getWarningSeconds(context: Context): Int {
         return prefs(context).getInt(KEY_WARNING_SECONDS, 3)
+    }
+
+    private fun postureScoreKey(dateKey: String): String {
+        return "posture_score_$dateKey"
+    }
+
+    fun saveTodayPostureScore(
+        context: Context,
+        score: Int
+    ) {
+        prefs(context)
+            .edit()
+            .putInt(
+                postureScoreKey(todayKey()),
+                score
+            )
+            .apply()
+    }
+
+    fun getTodayPostureScore(
+        context: Context
+    ): Int {
+        return prefs(context)
+            .getInt(
+                postureScoreKey(todayKey()),
+                100
+            )
+    }
+
+    fun getLast7DaysAveragePostureScore(
+        context: Context
+    ): Int {
+
+        val pref = prefs(context)
+
+        var total = 0
+        var count = 0
+
+        val calendar = Calendar.getInstance()
+
+        for (i in 1..7) {
+
+            val cal = calendar.clone() as Calendar
+            cal.add(Calendar.DAY_OF_YEAR, -i)
+
+            val dateKey =
+                dateKeyFromTime(cal.timeInMillis)
+
+            val score =
+                pref.getInt(
+                    postureScoreKey(dateKey),
+                    -1
+                )
+
+            if (score >= 0) {
+                total += score
+                count++
+            }
+        }
+
+        if (count == 0) {
+            return 100
+        }
+
+        return total / count
+    }
+
+    fun getPostureImprovementRate(
+        context: Context
+    ): Int {
+
+        val today =
+            getTodayPostureScore(context)
+
+        val average =
+            getLast7DaysAveragePostureScore(context)
+
+        if (average <= 0) {
+            return 0
+        }
+
+        return (
+                (
+                        (today - average).toFloat()
+                                / average.toFloat()
+                        ) * 100f
+                ).toInt()
     }
 }

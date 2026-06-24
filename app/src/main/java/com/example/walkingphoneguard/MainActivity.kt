@@ -69,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import java.util.Locale
 import kotlin.math.PI
@@ -507,7 +508,9 @@ fun AppRoot(
                         locationAccuracyM = locationAccuracyM,
                         showDevStatus = showDevStatus,
                         darkModeEnabled = darkModeEnabled,
-                        onMonitoringChange = onMonitoringChange
+                        onMonitoringChange = onMonitoringChange,
+                        postureForwardAngle = postureForwardAngle,
+                        postureSideAngle = postureSideAngle
                     )
 
                     1 -> StatsScreen(
@@ -519,7 +522,7 @@ fun AppRoot(
                         lookingDownWalkingSeconds = lookingDownWalkingSeconds,
                         leaningLeftWalkingSeconds = leaningLeftWalkingSeconds,
                         leaningRightWalkingSeconds = leaningRightWalkingSeconds,
-                        darkModeEnabled = darkModeEnabled
+                        darkModeEnabled = darkModeEnabled,
                     )
 
                     2 -> LinkScreen(
@@ -644,6 +647,8 @@ fun HomeScreen(
     locationAccuracyM: Float,
     showDevStatus: Boolean,
     darkModeEnabled: Boolean,
+    postureForwardAngle: Float,
+    postureSideAngle: Float,
     onMonitoringChange: (Boolean) -> Unit
 ) {
     val backgroundColor = if (darkModeEnabled) Color(0xFF121212) else Color(0xFFF5F5F5)
@@ -703,6 +708,54 @@ fun HomeScreen(
                         uncheckedThumbColor = Color.White,
                         uncheckedTrackColor = Color(0xFFBBBBBB)
                     )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        val postureBad =
+            postureForwardAngle > 25f ||
+                    postureSideAngle < -15f ||
+                    postureSideAngle > 15f
+
+        val dangerText = when {
+            finalJudgeState || postureBad && speedWalkingState && shakeWalkingState -> "危険"
+            postureBad -> "注意"
+            else -> "安全"
+        }
+
+        val dangerColor = when (dangerText) {
+            "危険" -> AccentRed
+            "注意" -> Color(0xFFFF9800)
+            else -> Color(0xFF4CAF50)
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "現在の危険度",
+                    fontSize = 16.sp,
+                    color = textSecondary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = dangerText,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = dangerColor
                 )
             }
         }
@@ -796,6 +849,24 @@ fun StatsScreen(
         else -> "姿勢は安定しています"
     }
 
+    val postureBadSeconds =
+        lookingDownWalkingSeconds +
+                leaningLeftWalkingSeconds +
+                leaningRightWalkingSeconds
+
+    val postureScore =
+        (100 - todayAlertCount * 3 - postureBadSeconds / 10).coerceIn(0, 100)
+
+    WalkingAppPrefs.saveTodayPostureScore(
+        LocalContext.current,
+        postureScore
+    )
+
+    val postureImprovementRate =
+        WalkingAppPrefs.getPostureImprovementRate(
+            LocalContext.current
+        )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -835,6 +906,41 @@ fun StatsScreen(
                     color = AccentRed,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "今日の姿勢スコア",
+                    fontSize = 18.sp,
+                    color = textSecondary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "$postureScore 点",
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when {
+                        postureScore >= 80 -> Color(0xFF4CAF50)
+                        postureScore >= 60 -> Color(0xFFFF9800)
+                        else -> AccentRed
+                    }
                 )
             }
         }
@@ -918,6 +1024,52 @@ fun StatsScreen(
                 StatRow("下を向いて歩いていた時間", lookingDownWalkingSeconds, textSecondary)
                 StatRow("左に傾いて歩いていた時間", leaningLeftWalkingSeconds, textSecondary)
                 StatRow("右に傾いて歩いていた時間", leaningRightWalkingSeconds, textSecondary)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+
+                Text(
+                    text = "姿勢改善率",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "${if (postureImprovementRate > 0) "+" else ""}$postureImprovementRate%",
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when {
+                        postureImprovementRate > 0 -> Color(0xFF4CAF50)
+                        postureImprovementRate < 0 -> AccentRed
+                        else -> textSecondary
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "過去7日間の平均姿勢スコアとの比較",
+                    fontSize = 13.sp,
+                    color = textSecondary,
+                    textAlign = TextAlign.Center
+                )
             }
         }
 
@@ -1155,8 +1307,14 @@ fun SemiCirclePostureMeter(
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
 
+                val meterColor = when {
+                    kotlin.math.abs(angle) <= 15f -> Color(0xFF4CAF50)
+                    kotlin.math.abs(angle) <= 25f -> Color(0xFFFF9800)
+                    else -> AccentRed
+                }
+
                 drawArc(
-                    color = AccentRed,
+                    color = meterColor,
                     startAngle = 180f,
                     sweepAngle = normalized * 180f,
                     useCenter = false,
@@ -1172,7 +1330,7 @@ fun SemiCirclePostureMeter(
                 val endY = center.y + sin(rad).toFloat() * needleLength
 
                 drawLine(
-                    color = AccentRed,
+                    color = meterColor,
                     start = center,
                     end = Offset(endX, endY),
                     strokeWidth = 6f,
@@ -1180,7 +1338,7 @@ fun SemiCirclePostureMeter(
                 )
 
                 drawCircle(
-                    color = AccentRed,
+                    color = meterColor,
                     radius = 9f,
                     center = center
                 )
@@ -1703,4 +1861,4 @@ fun AlertOverlay(
     }
 }
 
-// push test
+// push test2
