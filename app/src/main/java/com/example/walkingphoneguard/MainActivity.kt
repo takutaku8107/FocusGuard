@@ -73,6 +73,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import java.util.Locale
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -126,14 +127,17 @@ class MainActivity : ComponentActivity() {
                     alertMessage = intent.getStringExtra("message") ?: "歩きスマホをやめてください！"
                     refreshStats()
                 }
+                //警告表示
 
                 WalkingMonitorService.ACTION_ALERT_OFF -> {
                     showAlertScreen = false
                 }
+                //警告終了
 
                 WalkingMonitorService.ACTION_MONITORING_STARTED -> {
                     isMonitoring = true
                 }
+                //監視開始
 
                 WalkingMonitorService.ACTION_MONITORING_STOPPED -> {
                     isMonitoring = false
@@ -144,52 +148,71 @@ class MainActivity : ComponentActivity() {
                     finalJudgeState = false
                     locationAccuracyM = 0f
                 }
+                //警告終了
 
                 WalkingMonitorService.ACTION_STATUS_UPDATE -> {
                     currentSpeedMps = intent.getFloatExtra("speed_mps", 0f)
+                    //速度の受信
                     speedWalkingState = intent.getBooleanExtra("speed_walking", false)
+                    //歩行判定の受信
                     shakeWalkingState = intent.getBooleanExtra("shake_walking", false)
+                    //揺れの受信
                     finalJudgeState = intent.getBooleanExtra("final_judge", false)
+                    //最終判定の受信
                     locationAccuracyM = intent.getFloatExtra("location_accuracy_m", 0f)
 
                     bleStatus = intent.getStringExtra("ble_status") ?: bleStatus
+                    //Bluetooth状態の受信
                     rawText = intent.getStringExtra("raw_text") ?: rawText
+                    //生データ受信
                     bleSwitchOn = intent.getBooleanExtra("ble_connected", bleSwitchOn)
 
                     postureForwardAngle = intent.getFloatExtra(
                         "posture_forward_angle",
                         postureForwardAngle
                     )
+                    //前傾角度
                     postureSideAngle = intent.getFloatExtra(
                         "posture_side_angle",
                         postureSideAngle
                     )
-
+                    //左右の傾き
                     lookingDownWalkingSeconds = intent.getIntExtra(
                         "looking_down_seconds",
                         lookingDownWalkingSeconds
                     )
+                    //下を向いて歩いた時間
                     leaningLeftWalkingSeconds = intent.getIntExtra(
                         "leaning_left_seconds",
                         leaningLeftWalkingSeconds
                     )
+                    //左に傾いて歩いた時間
                     leaningRightWalkingSeconds = intent.getIntExtra(
                         "leaning_right_seconds",
                         leaningRightWalkingSeconds
                     )
+                    //右に傾いて歩いた時間
                 }
+                //状態の更新
             }
         }
     }
+    //WalkingMonitorServiceから送られてくる情報を受け取る
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        //親クラスのonCreate()も実行
 
         loadSettings()
+        //設定を読み込む
         refreshStats()
+        //統計情報を更新
         loadPostureStats()
+        //姿勢のデータを読み込む
         isMonitoring = WalkingAppPrefs.isMonitoring(this)
+        //保存されている監視状態を取得
         requestNeededPermissionsIfAny()
+        //必要な権限を確認
 
         setContent {
             MaterialTheme(
@@ -240,21 +263,29 @@ class MainActivity : ComponentActivity() {
                                 finalJudgeState = false
                                 locationAccuracyM = 0f
                             }
-                        },
+                        }
+                        //監視スイッチが押された時
+                        ,
                         onCloseAlert = {
                             showAlertScreen = false
-                        },
+                        }
+                        //警告画面の閉じるボタン
+                        ,
                         onBleConnectClick = {
                             requestNeededPermissionsIfAny()
                             bleSwitchOn = true
                             bleStatus = "接続準備中..."
                             sendServiceAction(WalkingMonitorService.ACTION_BLE_CONNECT, true)
-                        },
+                        }
+                        //Bluetooth接続ボタン
+                        ,
                         onBleDisconnectClick = {
                             sendServiceAction(WalkingMonitorService.ACTION_BLE_DISCONNECT, false)
                             bleSwitchOn = false
                             bleStatus = "未接続"
-                        },
+                        }
+                        //Bluetooth切断ボタン
+                        ,
                         onDevStatusChange = {
                             showDevStatus = it
                             WalkingAppPrefs.setShowDevStatus(this, it)
@@ -299,28 +330,38 @@ class MainActivity : ComponentActivity() {
 
                             postureForwardAngle = 0f
                             postureSideAngle = 0f
-                        },
+                        }
+                        //姿勢補正ボタン
+                        ,
                         onResetPostureDefault = {
                             WalkingAppPrefs.setBaseForwardAngle(this, 0f)
                             WalkingAppPrefs.setBaseSideAngle(this, 0f)
                         }
                     )
+                    //画面本体
                 }
+                //画面の土台
             }
+            //アプリ全体のデザイン
         }
+        //画面を作る
     }
+    //アプリが起動したときに最初に実行される
 
     private fun sendServiceAction(action: String, foreground: Boolean) {
         val intent = Intent(this, WalkingMonitorService::class.java).apply {
             this.action = action
         }
+        //命令を入れる封筒
 
         if (foreground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
+        //Android8以上かつforeground=trueのときフォアグラウンドサービスとして開始
     }
+    //WalkingMonitorServiceに命令を送る
 
     private fun loadSettings() {
         showDevStatus = WalkingAppPrefs.getShowDevStatus(this)
@@ -332,12 +373,14 @@ class MainActivity : ComponentActivity() {
         deviceWarningMode = WalkingAppPrefs.getDeviceWarningMode(this)
         deviceWarningSeconds = WalkingAppPrefs.getDeviceWarningSeconds(this)
     }
+    //設定を読み込む関数
 
     private fun refreshStats() {
         todayAlertCount = WalkingAppPrefs.getTodayAlertCount(this)
         monthStats = WalkingAppPrefs.getLast30DaysStats(this)
         yearStats = WalkingAppPrefs.getLast12MonthsStats(this)
     }
+    //統計データを読み込む関数
 
     private fun loadPostureStats() {
         WalkingAppPrefs.resetPostureStatsIfNeeded(this)
@@ -345,6 +388,7 @@ class MainActivity : ComponentActivity() {
         leaningLeftWalkingSeconds = WalkingAppPrefs.getLeaningLeftSeconds(this)
         leaningRightWalkingSeconds = WalkingAppPrefs.getLeaningRightSeconds(this)
     }
+    //姿勢に関する統計データを読み込む関数
 
     private fun requestNeededPermissionsIfAny() {
         val permissions = mutableListOf<String>()
@@ -355,18 +399,21 @@ class MainActivity : ComponentActivity() {
         ) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
+        //通知権限
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION)
             != PackageManager.PERMISSION_GRANTED
         ) {
             permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
         }
+        //歩行認識
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) {
             permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+        //GPS
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
@@ -381,19 +428,27 @@ class MainActivity : ComponentActivity() {
                 permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
             }
         }
+        //Bluetooth
 
         if (permissions.isNotEmpty()) {
             requestMultiplePermissions.launch(permissions.toTypedArray())
         }
+        //権限ダイアログを表示
     }
+    //権限を確認して、足りないものがあればユーザーに許可を求める
 
     override fun onStart() {
         super.onStart()
+        //親クラスのonStart()も実行
 
         isMonitoring = WalkingAppPrefs.isMonitoring(this)
+        //監視状態の読み込み
         refreshStats()
+        //警告回数の更新
         loadPostureStats()
+        //姿勢データ更新
         loadSettings()
+        //設定の読み込み
 
         val filter = IntentFilter().apply {
             addAction(WalkingMonitorService.ACTION_ALERT_ON)
@@ -402,6 +457,7 @@ class MainActivity : ComponentActivity() {
             addAction(WalkingMonitorService.ACTION_MONITORING_STOPPED)
             addAction(WalkingMonitorService.ACTION_STATUS_UPDATE)
         }
+        //部分的に受け取る
 
         ContextCompat.registerReceiver(
             this,
@@ -410,11 +466,13 @@ class MainActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
     }
+    //画面がユーザーに見えるようになるたび実行
 
     override fun onStop() {
         super.onStop()
         unregisterReceiver(receiver)
     }
+    //ホーム画面に戻った時
 }
 
 @Composable
@@ -461,10 +519,12 @@ fun AppRoot(
     onResetPostureDefault: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    //今どのタブを選んでいるか
 
     val backgroundColor = if (darkModeEnabled) Color(0xFF121212) else Color(0xFFF5F5F5)
     val cardColor = if (darkModeEnabled) Color(0xFF1E1E1E) else Color.White
     val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF777777)
+    //ダークモードか否か
 
     Box(
         modifier = Modifier
@@ -492,10 +552,12 @@ fun AppRoot(
                     color = textSecondary
                 )
             }
+            //ロゴとサブタイトル
 
             Box(
                 modifier = Modifier
                     .weight(1f)
+                    //ロゴとタブバー以外の部分
                     .fillMaxWidth()
             ) {
                 when (selectedTab) {
@@ -558,7 +620,9 @@ fun AppRoot(
                         onResetPostureDefault = onResetPostureDefault
                     )
                 }
+                //タブの切り替え
             }
+            //メイン画面
 
             NavigationBar(containerColor = cardColor) {
                 NavigationBarItem(
@@ -625,7 +689,9 @@ fun AppRoot(
                     label = { Text("設定") }
                 )
             }
+            //タブバー
         }
+        //中身を縦に並べる
 
         if (showAlertScreen) {
             AlertOverlay(
@@ -634,8 +700,11 @@ fun AppRoot(
                 onCloseAlert = onCloseAlert
             )
         }
+        //警告画面を表示
     }
+    //画面全体の土台
 }
+//アプリ全体の画面構成を管理する親画面
 
 @Composable
 fun HomeScreen(
@@ -655,6 +724,7 @@ fun HomeScreen(
     val cardColor = if (darkModeEnabled) Color(0xFF1E1E1E) else Color.White
     val textPrimary = if (darkModeEnabled) Color(0xFFF2F2F2) else Color(0xFF333333)
     val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
+    //ダークモードか否か
 
     Column(
         modifier = Modifier
@@ -662,6 +732,7 @@ fun HomeScreen(
             .background(backgroundColor)
             .padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.Center,
+        //中央寄り
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Card(
@@ -679,7 +750,7 @@ fun HomeScreen(
                 Column(modifier = Modifier.fillMaxWidth(0.75f)) {
                     Text(
                         text = if (isMonitoring) "監視中" else "停止中",
-                        fontSize = 24.sp,
+                        fontSize = 38.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isMonitoring) AccentRed else textPrimary
                     )
@@ -692,7 +763,7 @@ fun HomeScreen(
                         } else {
                             "スイッチをONにすると監視を開始します"
                         },
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         color = textSecondary
                     )
                 }
@@ -709,8 +780,11 @@ fun HomeScreen(
                         uncheckedTrackColor = Color(0xFFBBBBBB)
                     )
                 )
+                //監視中ならスイッチON、停止中ならOFF
             }
+            //横画面
         }
+        //監視状態
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -745,20 +819,22 @@ fun HomeScreen(
             ) {
                 Text(
                     text = "現在の危険度",
-                    fontSize = 16.sp,
-                    color = textSecondary
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = dangerText,
-                    fontSize = 36.sp,
+                    fontSize = 38.sp,
                     fontWeight = FontWeight.Bold,
                     color = dangerColor
                 )
             }
         }
+        //危険度
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -775,14 +851,19 @@ fun HomeScreen(
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("開発者モード", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Text(
+                        text = "開発者モード",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
                         text = "現在速度: ${String.format(Locale.JAPAN, "%.2f", currentSpeedMps)} m/s",
-                        fontSize = 18.sp,
-                        color = textPrimary
+                        fontSize = 17.sp,
+                        color = textSecondary
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -814,14 +895,18 @@ fun HomeScreen(
 
                     Text(
                         text = "位置情報精度: ${String.format(Locale.JAPAN, "%.1f", locationAccuracyM)} m",
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         color = textSecondary
                     )
                 }
             }
+            //開発者カード
         }
+        //開発者モードがオンか否か
     }
+    //縦画面
 }
+//ホーム画面
 
 @Composable
 fun StatsScreen(
@@ -836,11 +921,13 @@ fun StatsScreen(
     darkModeEnabled: Boolean
 ) {
     var showYear by remember { mutableStateOf(false) }
+    //グラフを「月表示」にするか「年表示」にするか
 
     val backgroundColor = if (darkModeEnabled) Color(0xFF121212) else Color(0xFFF5F5F5)
     val cardColor = if (darkModeEnabled) Color(0xFF1E1E1E) else Color.White
     val textPrimary = if (darkModeEnabled) Color(0xFFF2F2F2) else Color(0xFF333333)
     val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
+    //ダークモードか否か
 
     val postureMessage = when {
         postureForwardAngle > 25f -> "下を向くと危険です。前を向いて歩きましょう"
@@ -848,30 +935,36 @@ fun StatsScreen(
         postureSideAngle > 15f -> "首が右に傾く癖があるようです"
         else -> "姿勢は安定しています"
     }
+    //姿勢チェック
 
     val postureBadSeconds =
         lookingDownWalkingSeconds +
                 leaningLeftWalkingSeconds +
                 leaningRightWalkingSeconds
+    //姿勢が悪かった秒数
 
     val postureScore =
         (100 - todayAlertCount * 3 - postureBadSeconds / 10).coerceIn(0, 100)
+    //今日の姿勢スコア
 
     WalkingAppPrefs.saveTodayPostureScore(
         LocalContext.current,
         postureScore
     )
+    //姿勢スコアを保存
 
     val postureImprovementRate =
         WalkingAppPrefs.getPostureImprovementRate(
             LocalContext.current
         )
+    //姿勢改善率
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
             .verticalScroll(rememberScrollState())
+            //スクロールできる
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -891,10 +984,9 @@ fun StatsScreen(
             ) {
                 Text(
                     text = "今日の警告回数",
-                    fontSize = 18.sp,
-                    color = textSecondary,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -909,6 +1001,7 @@ fun StatsScreen(
                 )
             }
         }
+        //今日の警告回数カード
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -926,8 +1019,9 @@ fun StatsScreen(
             ) {
                 Text(
                     text = "今日の姿勢スコア",
-                    fontSize = 18.sp,
-                    color = textSecondary
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -944,88 +1038,7 @@ fun StatsScreen(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("警告回数グラフ", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                        Text(
-                            text = if (showYear) "過去1年（月単位）" else "過去1か月（日単位）",
-                            fontSize = 14.sp,
-                            color = textSecondary
-                        )
-                    }
-
-                    Text("月", fontSize = 13.sp, color = textSecondary)
-
-                    Switch(
-                        checked = showYear,
-                        onCheckedChange = { showYear = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = AccentRed,
-                            uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = Color(0xFFBBBBBB)
-                        )
-                    )
-
-                    Text("年", fontSize = 13.sp, color = textSecondary)
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                AlertBarChart(stats = if (showYear) yearStats else monthStats)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text("姿勢チェック", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = postureMessage,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (postureMessage == "姿勢は安定しています") textSecondary else AccentRed
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text("姿勢の傾向", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                StatRow("下を向いて歩いていた時間", lookingDownWalkingSeconds, textSecondary)
-                StatRow("左に傾いて歩いていた時間", leaningLeftWalkingSeconds, textSecondary)
-                StatRow("右に傾いて歩いていた時間", leaningRightWalkingSeconds, textSecondary)
-            }
-        }
+        //今日の姿勢スコアカード
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -1072,10 +1085,97 @@ fun StatsScreen(
                 )
             }
         }
+        //姿勢改善率カード
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("警告回数グラフ", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        Text(
+                            text = if (showYear) "過去1年（月単位）" else "過去1か月（日単位）",
+                            fontSize = 14.sp,
+                            color = textSecondary
+                        )
+                    }
+
+                    Text("月", fontSize = 13.sp, color = textSecondary)
+
+                    Switch(
+                        checked = showYear,
+                        onCheckedChange = { showYear = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = AccentRed,
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = Color(0xFFBBBBBB)
+                        )
+                    )
+
+                    Text("年", fontSize = 13.sp, color = textSecondary)
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                AlertBarChart(stats = if (showYear) yearStats else monthStats)
+            }
+        }
+        //警告回数グラフカード
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("姿勢チェック", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = postureMessage,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (postureMessage == "姿勢は安定しています") textSecondary else AccentRed
+                )
+            }
+        }
+        //姿勢チェックカード
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("姿勢の傾向", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                StatRow("下を向いて歩いていた時間", lookingDownWalkingSeconds, textSecondary)
+                StatRow("左に傾いて歩いていた時間", leaningLeftWalkingSeconds, textSecondary)
+                StatRow("右に傾いて歩いていた時間", leaningRightWalkingSeconds, textSecondary)
+            }
+        }
+        //姿勢の傾向カード
+
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }
+//統計画面
 
 @Composable
 fun StatRow(
@@ -1104,6 +1204,90 @@ fun StatRow(
         )
     }
 }
+//姿勢の傾向カードの表示内容
+
+@Composable
+fun AlertBarChart(stats: List<DailyStat>) {
+    val maxCount = maxOf(1, stats.maxOfOrNull { it.count } ?: 1)
+    val isMonthView = stats.size > 20
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+        ) {
+            if (isMonthView && stats.isNotEmpty()) {
+                val step = size.width / stats.size
+
+                stats.forEachIndexed { index, _ ->
+                    if (index % 10 == 0) {
+                        val x = step * index + step / 2f
+
+                        drawLine(
+                            color = Color.Gray.copy(alpha = 0.18f),
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = 2f
+                        )
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            stats.forEachIndexed { index, stat ->
+                val ratio = stat.count.toFloat() / maxCount.toFloat()
+                val barHeight = (160f * ratio).dp
+
+                val showLabel = if (isMonthView) {
+                    index == 0 || index == stats.lastIndex || index % 10 == 0
+                } else {
+                    true
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom,
+                    modifier = Modifier.fillMaxHeight()
+                ) {
+                    Text(
+                        text = stat.count.toString(),
+                        fontSize = 9.sp,
+                        color = Color(0xFF666666)
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .width(if (isMonthView) 8.dp else 20.dp)
+                            .height(barHeight)
+                            .background(
+                                color = if (stat.count > 0) AccentRed else Color(0xFFE0E0E0),
+                                shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
+                            )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = if (showLabel) stat.label else "",
+                        fontSize = if (isMonthView) 8.sp else 11.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        }
+    }
+}
+//警告回数を棒グラフで表示
 
 @Composable
 fun LinkScreen(
@@ -1121,15 +1305,19 @@ fun LinkScreen(
     val cardColor = if (darkModeEnabled) Color(0xFF1E1E1E) else Color.White
     val textPrimary = if (darkModeEnabled) Color(0xFFF2F2F2) else Color(0xFF333333)
     val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
+    //ダークモードか否か
 
     val values = Regex("""-?\d+(?:\.\d+)?""")
         .findAll(rawText)
         .map { it.value.toFloatOrNull() ?: 0f }
+        //文字をFloatに変換
         .toList()
+    //テキストから数値を取り出す
 
     val ax = values.getOrElse(0) { 0f }
     val ay = values.getOrElse(1) { 0f }
     val az = values.getOrElse(2) { 0f }
+
 
     Column(
         modifier = Modifier
@@ -1174,7 +1362,9 @@ fun LinkScreen(
                     )
                 )
             }
+            //横画面
         }
+        //bluetooth接続カード
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -1189,7 +1379,7 @@ fun LinkScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                SemiCirclePostureMeter(
+                SemiCirclePostureMeter1(
                     title = "前後の傾き",
                     angle = postureForwardAngle,
                     leftLabel = "上向き",
@@ -1199,7 +1389,7 @@ fun LinkScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                SemiCirclePostureMeter(
+                SemiCirclePostureMeter2(
                     title = "左右の傾き",
                     angle = postureSideAngle,
                     leftLabel = "左傾き",
@@ -1208,6 +1398,7 @@ fun LinkScreen(
                 )
             }
         }
+        //首の傾きメーターカード
 
         if (showDevStatus) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -1219,7 +1410,12 @@ fun LinkScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text("開発者モード", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Text(
+                        text = "開発者モード",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary
+                    )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -1229,14 +1425,18 @@ fun LinkScreen(
                     Text("AZ: ${"%.2f".format(az)}", color = textSecondary)
                 }
             }
+            //開発者モードカード
         }
+        //開発者モードがオンか否か
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(20.dp))
     }
+    //縦画面
 }
+//連携画面
 
 @Composable
-fun SemiCirclePostureMeter(
+fun SemiCirclePostureMeter1(
     title: String,
     angle: Float,
     leftLabel: String,
@@ -1247,10 +1447,14 @@ fun SemiCirclePostureMeter(
     val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
     val baseColor = if (darkModeEnabled) Color(0xFF444444) else Color(0xFFE0E0E0)
     val safeColor = Color(0xFF4CAF50).copy(alpha = 0.35f)
+    //ダークモードか否か
 
     val clampedAngle = angle.coerceIn(-45f, 45f)
+    //angleを-45°〜45°の範囲に制限
     val normalized = (clampedAngle + 45f) / 90f
+    //角度を0〜1に変換
     val needleDegree = 180f + (normalized * 180f)
+    //針の角度
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1291,6 +1495,128 @@ fun SemiCirclePostureMeter(
                     size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
+                //灰色の半円
+
+                val safeStartNormalized = (-45f + 45f) / 90f
+                val safeEndNormalized = (25f + 45f) / 90f
+                val safeStartAngle = 180f + safeStartNormalized * 180f
+                val safeSweep = (safeEndNormalized - safeStartNormalized) * 180f
+
+                drawArc(
+                    color = safeColor,
+                    startAngle = safeStartAngle,
+                    sweepAngle = safeSweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+                //安全範囲の半円
+
+                val meterColor = when {
+                    abs(angle) <= 15f -> Color(0xFF4CAF50)
+                    abs(angle) <= 25f -> Color(0xFFFF9800)
+                    else -> AccentRed
+                }
+
+                val rad = needleDegree * PI / 180.0
+                val needleLength = radius * 0.78f
+
+                val endX = center.x + cos(rad).toFloat() * needleLength
+                val endY = center.y + sin(rad).toFloat() * needleLength
+
+                drawLine(
+                    color = meterColor,
+                    start = center,
+                    end = Offset(endX, endY),
+                    strokeWidth = 6f,
+                    cap = StrokeCap.Round
+                )
+                //針
+
+                drawCircle(
+                    color = meterColor,
+                    radius = 9f,
+                    center = center
+                )
+                //針の根元の円
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(leftLabel, fontSize = 12.sp, color = textSecondary)
+            Text("安全範囲 +25°", fontSize = 12.sp, color = Color(0xFF4CAF50))
+            Text(rightLabel, fontSize = 12.sp, color = textSecondary)
+        }
+        //安全範囲
+    }
+}
+//半円メーター
+
+@Composable
+fun SemiCirclePostureMeter2(
+    title: String,
+    angle: Float,
+    leftLabel: String,
+    rightLabel: String,
+    darkModeEnabled: Boolean
+) {
+    val textPrimary = if (darkModeEnabled) Color(0xFFF2F2F2) else Color(0xFF333333)
+    val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
+    val baseColor = if (darkModeEnabled) Color(0xFF444444) else Color(0xFFE0E0E0)
+    val safeColor = Color(0xFF4CAF50).copy(alpha = 0.35f)
+    //ダークモードか否か
+
+    val clampedAngle = angle.coerceIn(-45f, 45f)
+    //angleを-45°〜45°の範囲に制限
+    val normalized = (clampedAngle + 45f) / 90f
+    //角度を0〜1に変換
+    val needleDegree = 180f + (normalized * 180f)
+    //針の角度
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "$title：${"%.1f".format(angle)}°",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = textPrimary
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+            ) {
+                val strokeWidth = 18f
+                val radius = size.width * 0.36f
+                val center = Offset(size.width / 2f, size.height - 10f)
+                val topLeft = Offset(center.x - radius, center.y - radius)
+                val arcSize = Size(radius * 2f, radius * 2f)
+
+                drawArc(
+                    color = baseColor,
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+                //灰色の半円
 
                 val safeStartNormalized = (-15f + 45f) / 90f
                 val safeEndNormalized = (15f + 45f) / 90f
@@ -1306,22 +1632,13 @@ fun SemiCirclePostureMeter(
                     size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
+                //安全範囲の半円
 
                 val meterColor = when {
-                    kotlin.math.abs(angle) <= 15f -> Color(0xFF4CAF50)
-                    kotlin.math.abs(angle) <= 25f -> Color(0xFFFF9800)
+                    abs(angle) <= 15f -> Color(0xFF4CAF50)
+                    abs(angle) <= 25f -> Color(0xFFFF9800)
                     else -> AccentRed
                 }
-
-                drawArc(
-                    color = meterColor,
-                    startAngle = 180f,
-                    sweepAngle = normalized * 180f,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(width = 8f, cap = StrokeCap.Round)
-                )
 
                 val rad = needleDegree * PI / 180.0
                 val needleLength = radius * 0.78f
@@ -1336,12 +1653,14 @@ fun SemiCirclePostureMeter(
                     strokeWidth = 6f,
                     cap = StrokeCap.Round
                 )
+                //針
 
                 drawCircle(
                     color = meterColor,
                     radius = 9f,
                     center = center
                 )
+                //針の根元の円
             }
         }
 
@@ -1353,8 +1672,10 @@ fun SemiCirclePostureMeter(
             Text("安全範囲 ±15°", fontSize = 12.sp, color = Color(0xFF4CAF50))
             Text(rightLabel, fontSize = 12.sp, color = textSecondary)
         }
+        //安全範囲
     }
 }
+//半円メーター
 
 @Composable
 fun SettingsScreen(
@@ -1418,6 +1739,7 @@ fun SettingsScreen(
                 Text("デバイス設定")
             }
         }
+        //設定画面切り替えボタン
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -1493,7 +1815,9 @@ fun SettingsScreen(
                     steps = 8
                 )
             }
-        } else {
+        }
+        //アプリ設定の時
+        else {
             SettingsCard(
                 title = "デバイス警告設定",
                 cardColor = cardColor,
@@ -1611,10 +1935,13 @@ fun SettingsScreen(
                 }
             }
         }
+        //デバイス設定の時
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(20.dp))
     }
+    //縦画面
 }
+//設定画面
 
 @Composable
 fun SettingsCard(
@@ -1622,6 +1949,7 @@ fun SettingsCard(
     cardColor: Color,
     textPrimary: Color,
     content: @Composable ColumnScope.() -> Unit
+    //子コンポーネントを受け取る
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1647,6 +1975,7 @@ fun SettingsCard(
         }
     }
 }
+//設定画面専用のカード部品
 
 @Composable
 fun SettingSwitchRow(
@@ -1692,88 +2021,7 @@ fun SettingSwitchRow(
         )
     }
 }
-
-@Composable
-fun AlertBarChart(stats: List<DailyStat>) {
-    val maxCount = maxOf(1, stats.maxOfOrNull { it.count } ?: 1)
-    val isMonthView = stats.size > 20
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-        ) {
-            if (isMonthView && stats.isNotEmpty()) {
-                val step = size.width / stats.size
-
-                stats.forEachIndexed { index, _ ->
-                    if (index % 10 == 0) {
-                        val x = step * index + step / 2f
-
-                        drawLine(
-                            color = Color.Gray.copy(alpha = 0.18f),
-                            start = Offset(x, 0f),
-                            end = Offset(x, size.height),
-                            strokeWidth = 2f
-                        )
-                    }
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            stats.forEachIndexed { index, stat ->
-                val ratio = stat.count.toFloat() / maxCount.toFloat()
-                val barHeight = (160f * ratio).dp
-
-                val showLabel = if (isMonthView) {
-                    index == 0 || index == stats.lastIndex || index % 10 == 0
-                } else {
-                    true
-                }
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Bottom,
-                    modifier = Modifier.fillMaxHeight()
-                ) {
-                    Text(
-                        text = stat.count.toString(),
-                        fontSize = 9.sp,
-                        color = Color(0xFF666666)
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .width(if (isMonthView) 8.dp else 20.dp)
-                            .height(barHeight)
-                            .background(
-                                color = if (stat.count > 0) AccentRed else Color(0xFFE0E0E0),
-                                shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
-                            )
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = if (showLabel) stat.label else "",
-                        fontSize = if (isMonthView) 8.sp else 11.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            }
-        }
-    }
-}
+//設定項目を共通化した部品
 
 @Composable
 fun AlertOverlay(
@@ -1860,5 +2108,4 @@ fun AlertOverlay(
         }
     }
 }
-
-// push test2
+//歩きスマホ時の警告画面
