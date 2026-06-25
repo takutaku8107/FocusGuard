@@ -754,6 +754,18 @@ object WalkingAppPrefs {
         return "count_$dateKey"
     }
 
+    private fun lookingDownKey(dateKey: String): String {
+        return "looking_down_$dateKey"
+    }
+
+    private fun leaningLeftKey(dateKey: String): String {
+        return "leaning_left_$dateKey"
+    }
+
+    private fun leaningRightKey(dateKey: String): String {
+        return "leaning_right_$dateKey"
+    }
+
     fun getTodayAlertCount(context: Context): Int {
         return prefs(context).getInt(countKey(todayKey()), 0)
     }
@@ -813,53 +825,40 @@ object WalkingAppPrefs {
     }
 
     fun resetPostureStatsIfNeeded(context: Context) {
-        val pref = prefs(context)
-        val savedDate = pref.getString(KEY_POSTURE_DATE, todayKey())
-
-        if (savedDate != todayKey()) {
-            pref.edit()
-                .putString(KEY_POSTURE_DATE, todayKey())
-                .putInt(KEY_LOOKING_DOWN_SECONDS, 0)
-                .putInt(KEY_LEANING_LEFT_SECONDS, 0)
-                .putInt(KEY_LEANING_RIGHT_SECONDS, 0)
-                .apply()
-        }
+        // 日付キー方式にしたので、リセット処理は不要
     }
 
     fun addLookingDownSeconds(context: Context, seconds: Int) {
-        resetPostureStatsIfNeeded(context)
         val pref = prefs(context)
-        val value = pref.getInt(KEY_LOOKING_DOWN_SECONDS, 0) + seconds
-        pref.edit().putInt(KEY_LOOKING_DOWN_SECONDS, value).apply()
+        val key = lookingDownKey(todayKey())
+        val value = pref.getInt(key, 0) + seconds
+        pref.edit().putInt(key, value).apply()
     }
 
     fun addLeaningLeftSeconds(context: Context, seconds: Int) {
-        resetPostureStatsIfNeeded(context)
         val pref = prefs(context)
-        val value = pref.getInt(KEY_LEANING_LEFT_SECONDS, 0) + seconds
-        pref.edit().putInt(KEY_LEANING_LEFT_SECONDS, value).apply()
+        val key = leaningLeftKey(todayKey())
+        val value = pref.getInt(key, 0) + seconds
+        pref.edit().putInt(key, value).apply()
     }
 
     fun addLeaningRightSeconds(context: Context, seconds: Int) {
-        resetPostureStatsIfNeeded(context)
         val pref = prefs(context)
-        val value = pref.getInt(KEY_LEANING_RIGHT_SECONDS, 0) + seconds
-        pref.edit().putInt(KEY_LEANING_RIGHT_SECONDS, value).apply()
+        val key = leaningRightKey(todayKey())
+        val value = pref.getInt(key, 0) + seconds
+        pref.edit().putInt(key, value).apply()
     }
 
     fun getLookingDownSeconds(context: Context): Int {
-        resetPostureStatsIfNeeded(context)
-        return prefs(context).getInt(KEY_LOOKING_DOWN_SECONDS, 0)
+        return prefs(context).getInt(lookingDownKey(todayKey()), 0)
     }
 
     fun getLeaningLeftSeconds(context: Context): Int {
-        resetPostureStatsIfNeeded(context)
-        return prefs(context).getInt(KEY_LEANING_LEFT_SECONDS, 0)
+        return prefs(context).getInt(leaningLeftKey(todayKey()), 0)
     }
 
     fun getLeaningRightSeconds(context: Context): Int {
-        resetPostureStatsIfNeeded(context)
-        return prefs(context).getInt(KEY_LEANING_RIGHT_SECONDS, 0)
+        return prefs(context).getInt(leaningRightKey(todayKey()), 0)
     }
 
     fun setDeviceWarningMode(context: Context, value: Int) {
