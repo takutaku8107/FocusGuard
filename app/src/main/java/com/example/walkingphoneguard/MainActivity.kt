@@ -1514,8 +1514,8 @@ fun SemiCirclePostureMeter1(
                 //安全範囲の半円
 
                 val meterColor = when {
-                    abs(angle) <= 15f -> Color(0xFF4CAF50)
-                    abs(angle) <= 25f -> Color(0xFFFF9800)
+                    angle <= 15f -> Color(0xFF4CAF50)
+                    angle <= 25f -> Color(0xFFFF9800)
                     else -> AccentRed
                 }
 
@@ -1635,8 +1635,8 @@ fun SemiCirclePostureMeter2(
                 //安全範囲の半円
 
                 val meterColor = when {
-                    abs(angle) <= 15f -> Color(0xFF4CAF50)
-                    abs(angle) <= 25f -> Color(0xFFFF9800)
+                    abs(angle) <= 10f -> Color(0xFF4CAF50)
+                    abs(angle) <= 15f -> Color(0xFFFF9800)
                     else -> AccentRed
                 }
 
