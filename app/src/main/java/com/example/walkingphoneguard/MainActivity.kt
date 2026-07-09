@@ -730,6 +730,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.Center,
         //中央寄り

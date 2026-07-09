@@ -264,7 +264,6 @@ class WalkingMonitorService : Service(), SensorEventListener {
             if (!isWalking) {
                 isWalking = true
                 walkingStartTime = currentTime
-                updateNotification("歩行中", "歩行を検知しました")
                 sendStatusUpdate()
             } else {
                 val walkingDuration = currentTime - walkingStartTime
@@ -275,7 +274,6 @@ class WalkingMonitorService : Service(), SensorEventListener {
                 } else if (!isAlerting) {
                     val remainMs = thresholdMs - walkingDuration
                     val remainSec = (remainMs / 1000L) + 1L
-                    updateNotification("歩行中", "あと ${remainSec} 秒で警告")
                 }
             }
         } else {
@@ -286,8 +284,6 @@ class WalkingMonitorService : Service(), SensorEventListener {
             shakeWalkingState = false
             updateFinalJudgeState()
             checkPostureWarning()
-
-            updateNotification("検知中", "歩行開始を確認しています")
             sendAlertOffBroadcast()
             sendStatusUpdate()
         }
@@ -310,8 +306,6 @@ class WalkingMonitorService : Service(), SensorEventListener {
             shakeWalkingState = false
             updateFinalJudgeState()
             checkPostureWarning()
-
-            updateNotification("監視中", "歩行を監視しています")
             sendAlertOffBroadcast()
             sendStatusUpdate()
         }
@@ -534,12 +528,6 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
         if (!isWalkLikeSpeed()) {
             finalJudgeState = false
-
-            updateNotification(
-                "歩行中",
-                "速度 ${"%.1f".format(Locale.JAPAN, currentSpeedMps)} m/s のため警告しません"
-            )
-
             sendStatusUpdate()
             return
         }
@@ -622,6 +610,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             )
         }
 
+        intent.setPackage(packageName)
         sendBroadcast(intent)
     }
 
@@ -685,15 +674,20 @@ class WalkingMonitorService : Service(), SensorEventListener {
             putExtra("count", count)
         }
 
+        intent.setPackage(packageName)
         sendBroadcast(intent)
     }
 
     private fun sendAlertOffBroadcast() {
-        sendBroadcast(Intent(ACTION_ALERT_OFF))
+        sendBroadcast(
+            Intent(ACTION_ALERT_OFF).setPackage(packageName)
+        )
     }
 
     private fun sendSimpleBroadcast(action: String) {
-        sendBroadcast(Intent(action))
+        sendBroadcast(
+            Intent(action).setPackage(packageName)
+        )
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
