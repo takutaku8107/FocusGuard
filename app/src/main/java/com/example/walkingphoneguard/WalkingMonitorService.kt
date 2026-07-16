@@ -22,6 +22,8 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -250,6 +252,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         sendStatusUpdate()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_STEP_DETECTOR) return
 
@@ -312,8 +315,9 @@ class WalkingMonitorService : Service(), SensorEventListener {
     }
 
     private val vibrationRunnable = object : Runnable {
+        @RequiresApi(Build.VERSION_CODES.O)
         override fun run() {
-            if (isAlerting && WalkingAppPrefs.getVibrationEnabled(this@WalkingMonitorService)) {
+            if (isAlerting) {
                 vibrateOnce()
                 handler.postDelayed(this, VIBRATION_INTERVAL_MS)
             }
@@ -520,6 +524,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         finalJudgeState = shakeWalkingState && speedWalkingState && isScreenOn()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun startAlertIfValidSpeed() {
         updateFinalJudgeState()
         sendStatusUpdate()
@@ -558,23 +563,45 @@ class WalkingMonitorService : Service(), SensorEventListener {
     private fun stopAlertEffects() {
         handler.removeCallbacks(vibrationRunnable)
 
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val manager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            manager.defaultVibrator
+        } else {
+        @Suppress("DEPRECATION")
+        getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
         vibrator.cancel()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun vibrateOnce() {
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(
-                VibrationEffect.createOneShot(
-                    VIBRATION_MS,
-                    VibrationEffect.DEFAULT_AMPLITUDE
-                )
-            )
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager =
+                getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            manager.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
-            vibrator.vibrate(VIBRATION_MS)
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        if (!vibrator.hasVibrator()) return
+
+        val effect = VibrationEffect.createOneShot(
+            500L,
+            VibrationEffect.DEFAULT_AMPLITUDE
+        )
+
+        val attributes = android.media.AudioAttributes.Builder()
+            .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(effect, attributes)
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(500L)
         }
     }
 
