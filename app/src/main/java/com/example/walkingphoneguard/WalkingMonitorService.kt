@@ -1,6 +1,7 @@
 package com.example.walkingphoneguard
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -121,8 +122,17 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
                 bleConnected =
                     it.contains("受信中") ||
-                            it.contains("接続成功") ||
-                            it.contains("接続中")
+                            it.contains("接続成功")
+
+                if (!bleConnected) {
+                    rawText = ""
+                    postureForwardAngle = 0f
+                    postureSideAngle = 0f
+                    postureBadStartTime = 0L
+                    postureWarningSent = false
+                    lastPostureCountTime = 0L
+                }
+
                 sendStatusUpdate()
             },
             onValuesChanged = { },
@@ -152,6 +162,15 @@ class WalkingMonitorService : Service(), SensorEventListener {
                 bleStatus = "未接続"
                 rawText = ""
                 bleConnected = false
+
+                // 首の傾きを0度に戻す
+                postureForwardAngle = 0f
+                postureSideAngle = 0f
+
+                // 姿勢警告の判定時間もリセット
+                postureBadStartTime = 0L
+                postureWarningSent = false
+                lastPostureCountTime = 0L
 
                 sendStatusUpdate()
 
@@ -560,15 +579,17 @@ class WalkingMonitorService : Service(), SensorEventListener {
         sendStatusUpdate()
     }
 
+    @SuppressLint("SuspiciousIndentation")
     private fun stopAlertEffects() {
         handler.removeCallbacks(vibrationRunnable)
 
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val manager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            val manager =
+                getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
             manager.defaultVibrator
         } else {
-        @Suppress("DEPRECATION")
-        getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
 
         vibrator.cancel()

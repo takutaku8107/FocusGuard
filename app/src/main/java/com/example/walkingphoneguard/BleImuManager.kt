@@ -371,9 +371,9 @@ class BleImuManager(
 
         onRawTextChanged(
             """
-AX(raw): $latestAx
-AY(raw): $latestAy
-AZ(raw): $latestAz
+            AX(raw): $latestAx
+            AY(raw): $latestAy
+            AZ(raw): $latestAz
             """.trimIndent()
         )
 

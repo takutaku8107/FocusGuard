@@ -70,6 +70,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import java.util.Locale
 import kotlin.math.PI
@@ -538,19 +540,38 @@ fun AppRoot(
                     .padding(top = 16.dp, bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.focusguard_logo),
-                    contentDescription = "FocusGuard Logo",
-                    modifier = Modifier.fillMaxWidth(0.68f)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
 
-                Spacer(modifier = Modifier.height(4.dp))
+                    Image(
+                        painter = painterResource(id = R.drawable.focusguard_header),
+                        contentDescription = "FocusGuard",
+                        modifier = Modifier.size(56.dp)
+                    )
 
-                Text(
-                    text = "Stay focused. Stay safe.",
-                    fontSize = 14.sp,
-                    color = textSecondary
-                )
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column {
+
+                        Text(
+                            text = "FocusGuard",
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textSecondary
+                        )
+
+                        Text(
+                            text = "Stay focused. Stay safe.",
+                            fontSize = 14.sp,
+                            color = textSecondary
+                        )
+                    }
+                }
             }
             //ロゴとサブタイトル
 
@@ -1343,7 +1364,7 @@ fun LinkScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Bluetooth接続", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    Text("PostureGuard連携", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textPrimary)
 
                     Spacer(modifier = Modifier.height(4.dp))
 
