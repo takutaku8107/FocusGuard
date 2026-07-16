@@ -39,7 +39,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.atan2
-import androidx.core.content.edit
 
 class WalkingMonitorService : Service(), SensorEventListener {
 
@@ -771,6 +770,8 @@ object WalkingAppPrefs {
     private const val KEY_LOOKING_DOWN_SECONDS = "key_looking_down_seconds"
     private const val KEY_LEANING_LEFT_SECONDS = "key_leaning_left_seconds"
     private const val KEY_LEANING_RIGHT_SECONDS = "key_leaning_right_seconds"
+    private const val KEY_PERMISSION_GUIDE_SHOWN =
+        "key_permission_guide_shown"
 
     private fun prefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -810,6 +811,23 @@ object WalkingAppPrefs {
 
     fun getTodayAlertCount(context: Context): Int {
         return prefs(context).getInt(countKey(todayKey()), 0)
+    }
+
+    fun hasShownPermissionGuide(context: Context): Boolean {
+        return prefs(context).getBoolean(
+            KEY_PERMISSION_GUIDE_SHOWN,
+            false
+        )
+    }
+
+    fun setPermissionGuideShown(
+        context: Context,
+        shown: Boolean
+    ) {
+        prefs(context)
+            .edit()
+            .putBoolean(KEY_PERMISSION_GUIDE_SHOWN, shown)
+            .apply()
     }
 
     fun incrementTodayAlertCount(context: Context): Int {

@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) {
-            showPermissionGuide = !hasAllRequiredPermissions()
+            // 初回案内画面は再表示しない
         }
 
     private val receiver = object : BroadcastReceiver() {
@@ -223,9 +223,7 @@ class MainActivity : ComponentActivity() {
         //姿勢のデータを読み込む
         isMonitoring = WalkingAppPrefs.isMonitoring(this)
         //保存されている監視状態を取得
-        requestNeededPermissionsIfAny()
-        //必要な権限を確認
-        showPermissionGuide = !hasAllRequiredPermissions()
+        showPermissionGuide = !WalkingAppPrefs.hasShownPermissionGuide(this)
 
         setContent {
             MaterialTheme(
@@ -351,6 +349,12 @@ class MainActivity : ComponentActivity() {
                         },
                         showPermissionGuide = showPermissionGuide,
                         onRequestPermissions = {
+                            WalkingAppPrefs.setPermissionGuideShown(
+                                this,
+                                true
+                            )
+
+                            showPermissionGuide = false
                             requestNeededPermissionsIfAny()
                         },
                     )
