@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +39,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -64,14 +66,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import java.util.Locale
 import kotlin.math.PI
@@ -117,8 +117,14 @@ class MainActivity : ComponentActivity() {
     private var deviceWarningMode by mutableIntStateOf(WalkingAppPrefs.DEVICE_WARNING_POSTURE_AND_WALKING)
     private var deviceWarningSeconds by mutableIntStateOf(3)
 
+    private var showPermissionGuide by mutableStateOf(false)
+
     private val requestMultiplePermissions =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) {
+            showPermissionGuide = !hasAllRequiredPermissions()
+        }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -215,6 +221,7 @@ class MainActivity : ComponentActivity() {
         //保存されている監視状態を取得
         requestNeededPermissionsIfAny()
         //必要な権限を確認
+        showPermissionGuide = !hasAllRequiredPermissions()
 
         setContent {
             MaterialTheme(
@@ -332,13 +339,16 @@ class MainActivity : ComponentActivity() {
 
                             postureForwardAngle = 0f
                             postureSideAngle = 0f
-                        }
+                        },
                         //姿勢補正ボタン
-                        ,
                         onResetPostureDefault = {
                             WalkingAppPrefs.setBaseForwardAngle(this, 0f)
                             WalkingAppPrefs.setBaseSideAngle(this, 0f)
-                        }
+                        },
+                        showPermissionGuide = showPermissionGuide,
+                        onRequestPermissions = {
+                            requestNeededPermissionsIfAny()
+                        },
                     )
                     //画面本体
                 }
@@ -439,6 +449,49 @@ class MainActivity : ComponentActivity() {
     }
     //権限を確認して、足りないものがあればユーザーに許可を求める
 
+    private fun hasAllRequiredPermissions(): Boolean {
+        val activityGranted =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACTIVITY_RECOGNITION
+            ) == PackageManager.PERMISSION_GRANTED
+
+        val locationGranted =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+        val notificationGranted =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+
+        val bluetoothGranted =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.BLUETOOTH_SCAN
+                ) == PackageManager.PERMISSION_GRANTED &&
+                        ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.BLUETOOTH_CONNECT
+                        ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+
+        return activityGranted &&
+                locationGranted &&
+                notificationGranted &&
+                bluetoothGranted
+    }
+
     override fun onStart() {
         super.onStart()
         //親クラスのonStart()も実行
@@ -518,7 +571,9 @@ fun AppRoot(
     onDeviceWarningModeChange: (Int) -> Unit,
     onDeviceWarningSecondsChange: (Int) -> Unit,
     onSetCurrentPostureAsDefault: () -> Unit,
-    onResetPostureDefault: () -> Unit
+    onResetPostureDefault: () -> Unit,
+    showPermissionGuide: Boolean,
+    onRequestPermissions: () -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     //今どのタブを選んでいるか
@@ -724,6 +779,12 @@ fun AppRoot(
         //警告画面を表示
     }
     //画面全体の土台
+    if (showPermissionGuide) {
+        PermissionGuideOverlay(
+            darkModeEnabled = darkModeEnabled,
+            onRequestPermissions = onRequestPermissions
+        )
+    }
 }
 //アプリ全体の画面構成を管理する親画面
 
@@ -1329,6 +1390,28 @@ fun LinkScreen(
     val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
     //ダークモードか否か
 
+    val isBleConnected =
+        bleStatus.contains("受信中") ||
+                bleStatus.contains("接続成功")
+
+    val isBleConnecting =
+        bleStatus.contains("準備中") ||
+                bleStatus.contains("スキャン中") ||
+                bleStatus.contains("接続中") ||
+                bleStatus.contains("サービス確認中") ||
+                bleStatus.contains("PostureGuardを発見")
+
+    val isBleError =
+        !isBleConnected &&
+                !isBleConnecting &&
+                (
+                        bleStatus.contains("失敗") ||
+                                bleStatus.contains("見つかりません") ||
+                                bleStatus.contains("切断") ||
+                                bleStatus.contains("権限がありません") ||
+                                bleStatus.contains("BluetoothがOFF")
+                        )
+
     val values = Regex("""-?\d+(?:\.\d+)?""")
         .findAll(rawText)
         .map { it.value.toFloatOrNull() ?: 0f }
@@ -1387,6 +1470,101 @@ fun LinkScreen(
             //横画面
         }
         //bluetooth接続カード
+
+        if (isBleConnecting) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = cardColor
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = AccentRed,
+                        trackColor = if (darkModeEnabled)
+                            Color(0xFF555555)
+                        else
+                            Color(0xFFD8D8D8),
+                        strokeWidth = 3.dp
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = when {
+                            bleStatus.contains("スキャン中") ->
+                                "PostureGuardを探しています"
+
+                            bleStatus.contains("発見") ->
+                                "PostureGuardに接続しています"
+
+                            bleStatus.contains("サービス確認中") ->
+                                "接続を準備しています"
+
+                            else ->
+                                "Bluetooth接続中"
+                        },
+                        fontSize = 14.sp,
+                        color = textSecondary
+                    )
+                }
+            }
+        }
+
+        if (isBleError) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = AccentRed.copy(alpha = 0.12f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Bluetooth接続に失敗しました",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentRed
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "PostureGuardの電源とBluetoothを確認し、もう一度接続してください。",
+                        fontSize = 14.sp,
+                        color = textSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = onBleConnectClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentRed
+                        )
+                    ) {
+                        Text("再接続する")
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -2131,3 +2309,136 @@ fun AlertOverlay(
     }
 }
 //歩きスマホ時の警告画面
+
+@Composable
+fun PermissionGuideOverlay(
+    darkModeEnabled: Boolean,
+    onRequestPermissions: () -> Unit
+) {
+    val backgroundColor =
+        if (darkModeEnabled) Color(0xFF121212) else Color(0xFFF5F5F5)
+
+    val cardColor =
+        if (darkModeEnabled) Color(0xFF1E1E1E) else Color.White
+
+    val textPrimary =
+        if (darkModeEnabled) Color(0xFFF2F2F2) else Color(0xFF222222)
+
+    val textSecondary =
+        if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = cardColor
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 8.dp
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "必要な権限について",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                PermissionDescription(
+                    title = "位置情報",
+                    description = "スマホの移動速度を取得し、歩行中かどうかを判定するために使用します。",
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
+
+                PermissionDescription(
+                    title = "身体活動",
+                    description = "歩数センサーを使用して、歩行を検知するために使用します。",
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
+
+                PermissionDescription(
+                    title = "近くのデバイス",
+                    description = "PostureGuardとBluetooth接続するために使用します。",
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
+
+                PermissionDescription(
+                    title = "通知",
+                    description = "監視状態や歩きスマホ警告を表示するために使用します。",
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = onRequestPermissions,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentRed
+                    )
+                ) {
+                    Text("権限を許可する")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "権限を許可しない場合、一部の機能を使用できません。",
+                    fontSize = 13.sp,
+                    color = textSecondary,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PermissionDescription(
+    title: String,
+    description: String,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            color = textPrimary
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = description,
+            fontSize = 14.sp,
+            color = textSecondary
+        )
+    }
+}
+//初回起動時の権限の案内

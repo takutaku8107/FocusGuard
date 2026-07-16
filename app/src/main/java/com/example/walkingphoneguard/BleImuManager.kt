@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import java.util.UUID
+import android.os.Handler
+import android.os.Looper
 
 data class ImuValues(
     val ax: Float = 0f,
@@ -49,6 +51,15 @@ class BleImuManager(
 
     private var bluetoothGatt: BluetoothGatt? = null
     private var isScanning = false
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val scanTimeoutRunnable = Runnable {
+        if (isScanning) {
+            stopScan()
+            onStatusChanged("デバイスが見つかりません")
+        }
+    }
 
     private var accelCharacteristic: BluetoothGattCharacteristic? = null
     private var ledCharacteristic: BluetoothGattCharacteristic? = null
@@ -96,16 +107,26 @@ class BleImuManager(
         onStatusChanged("スキャン中...")
         isScanning = true
 
+        handler.removeCallbacks(scanTimeoutRunnable)
+
         try {
             scanner?.startScan(scanCallback)
+
+            handler.postDelayed(
+                scanTimeoutRunnable,
+                5_000L
+            )
         } catch (_: Exception) {
             isScanning = false
+            handler.removeCallbacks(scanTimeoutRunnable)
             onStatusChanged("スキャン開始に失敗しました")
         }
     }
 
     @SuppressLint("MissingPermission")
     fun stopScan() {
+        handler.removeCallbacks(scanTimeoutRunnable)
+
         if (!isScanning) return
 
         try {
@@ -189,15 +210,15 @@ class BleImuManager(
                 null
             }
 
-            onStatusChanged("発見: ${deviceName ?: "名前なし"}")
-
             if (deviceName == TARGET_DEVICE_NAME) {
+                onStatusChanged("PostureGuardを発見しました")
                 stopScan()
                 connectToDevice(result)
             }
         }
 
         override fun onScanFailed(errorCode: Int) {
+            handler.removeCallbacks(scanTimeoutRunnable)
             isScanning = false
             onStatusChanged("スキャン失敗: $errorCode")
         }
@@ -226,18 +247,42 @@ class BleImuManager(
             status: Int,
             newState: Int
         ) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                onStatusChanged("接続失敗")
+
+                try {
+                    gatt.disconnect()
+                } catch (_: Exception) {
+                }
+
+                try {
+                    gatt.close()
+                } catch (_: Exception) {
+                }
+
+                if (bluetoothGatt == gatt) {
+                    bluetoothGatt = null
+                    accelCharacteristic = null
+                    ledCharacteristic = null
+                }
+
+                return
+            }
+
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     onStatusChanged("接続成功・サービス確認中...")
+
                     try {
                         gatt.discoverServices()
                     } catch (_: Exception) {
-                        onStatusChanged("サービス確認に失敗しました")
+                        onStatusChanged("サービス確認失敗")
                     }
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
-                    onStatusChanged("切断されました")
+                    onStatusChanged("接続切断")
+
                     try {
                         gatt.close()
                     } catch (_: Exception) {

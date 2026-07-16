@@ -45,7 +45,7 @@ fun SplashScreen() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
-            painter = painterResource(id = R.drawable.focusguard_logo),
+            painter = painterResource(id = R.drawable.focusguard_header),
             contentDescription = "FocusGuard Logo",
             modifier = Modifier.fillMaxWidth(0.72f)
         )
