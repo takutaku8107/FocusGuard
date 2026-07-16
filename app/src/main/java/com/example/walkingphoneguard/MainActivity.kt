@@ -11,6 +11,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -72,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import java.util.Locale
 import kotlin.math.PI
@@ -119,6 +121,7 @@ class MainActivity : ComponentActivity() {
 
     private var showPermissionGuide by mutableStateOf(false)
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private val requestMultiplePermissions =
         registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -207,6 +210,7 @@ class MainActivity : ComponentActivity() {
     }
     //WalkingMonitorServiceから送られてくる情報を受け取る
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         //親クラスのonCreate()も実行
@@ -402,6 +406,7 @@ class MainActivity : ComponentActivity() {
     }
     //姿勢に関する統計データを読み込む関数
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun requestNeededPermissionsIfAny() {
         val permissions = mutableListOf<String>()
 
@@ -449,6 +454,7 @@ class MainActivity : ComponentActivity() {
     }
     //権限を確認して、足りないものがあればユーザーに許可を求める
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun hasAllRequiredPermissions(): Boolean {
         val activityGranted =
             ContextCompat.checkSelfPermission(
@@ -1390,6 +1396,8 @@ fun LinkScreen(
     val textSecondary = if (darkModeEnabled) Color(0xFFBBBBBB) else Color(0xFF666666)
     //ダークモードか否か
 
+    var hideBleError by remember { mutableStateOf(false) }
+
     val isBleConnected =
         bleStatus.contains("受信中") ||
                 bleStatus.contains("接続成功")
@@ -1423,6 +1431,11 @@ fun LinkScreen(
     val ay = values.getOrElse(1) { 0f }
     val az = values.getOrElse(2) { 0f }
 
+    LaunchedEffect(bleStatus) {
+        if (!isBleError) {
+            hideBleError = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1472,7 +1485,7 @@ fun LinkScreen(
         //bluetooth接続カード
 
         if (isBleConnecting) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1521,8 +1534,8 @@ fun LinkScreen(
             }
         }
 
-        if (isBleError) {
-            Spacer(modifier = Modifier.height(12.dp))
+        if (isBleError && !hideBleError) {
+            Spacer(modifier = Modifier.height(16.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1554,13 +1567,33 @@ fun LinkScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Button(
-                        onClick = onBleConnectClick,
+                        onClick = {
+                            hideBleError = true
+                            onBleConnectClick()
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AccentRed
                         )
                     ) {
                         Text("再接続する")
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Button(
+                        onClick = {
+                            hideBleError = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFBBBBBB)
+                        )
+                    ) {
+                        Text(
+                            text = "閉じる",
+                            color = Color.White
+                        )
                     }
                 }
             }
