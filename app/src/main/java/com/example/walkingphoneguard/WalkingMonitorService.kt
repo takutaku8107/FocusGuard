@@ -90,7 +90,10 @@ class WalkingMonitorService : Service(), SensorEventListener {
         const val ACTION_STATUS_UPDATE = "ACTION_STATUS_UPDATE"
 
         private const val CHANNEL_ID = "walking_monitor_channel_v2"
-        private const val NOTIFICATION_ID = 1001
+
+        private const val FOREGROUND_NOTIFICATION_ID = 1001
+        private const val ALERT_NOTIFICATION_ID = 1002
+        private const val START_NOTIFICATION_ID = 1003
 
         private const val STEP_CONTINUE_WINDOW_MS = 2000L
         private const val STOP_TIMEOUT_MS = 2000L
@@ -186,20 +189,6 @@ class WalkingMonitorService : Service(), SensorEventListener {
     private fun startMonitoring() {
         startForegroundIfNeeded("監視中", "歩行を監視しています")
 
-        if (stepSensor == null) {
-            WalkingAppPrefs.setMonitoring(this, false)
-            updateNotification("非対応", "このスマホは歩行センサー非対応です")
-            sendSimpleBroadcast(ACTION_MONITORING_STOPPED)
-            return
-        }
-
-        if (!hasRequiredPermissions()) {
-            WalkingAppPrefs.setMonitoring(this, false)
-            updateNotification("権限エラー", "歩行・位置情報の権限が必要です")
-            sendSimpleBroadcast(ACTION_MONITORING_STOPPED)
-            return
-        }
-
         WalkingAppPrefs.resetPostureStatsIfNeeded(this)
 
         sensorManager.unregisterListener(this)
@@ -215,7 +204,8 @@ class WalkingMonitorService : Service(), SensorEventListener {
         monitoringActive = true
         WalkingAppPrefs.setMonitoring(this, true)
 
-        updateNotification("監視中", "歩行を監視しています")
+        showStartNotification()
+
         sendSimpleBroadcast(ACTION_MONITORING_STARTED)
         sendStatusUpdate()
     }
@@ -380,13 +370,6 @@ class WalkingMonitorService : Service(), SensorEventListener {
                         ay * ay +
                         az * az
             )
-
-        if (totalG > 2.8f) {
-            updateNotification(
-                "転倒検知",
-                "転倒の可能性があります"
-            )
-        }
 
         val rawForwardAngle = Math.toDegrees(
             atan2((-ax).toDouble(), ay.toDouble())
@@ -563,7 +546,10 @@ class WalkingMonitorService : Service(), SensorEventListener {
         val todayCount = WalkingAppPrefs.incrementTodayAlertCount(this)
 
         if (WalkingAppPrefs.getAlertNotificationEnabled(this)) {
-            updateNotification(title, message)
+            showAlertNotification(
+                title,
+                message
+            )
         }
 
         sendAlertOnBroadcast(title, message, todayCount)
@@ -661,12 +647,21 @@ class WalkingMonitorService : Service(), SensorEventListener {
         sendBroadcast(intent)
     }
 
-    private fun startForegroundIfNeeded(title: String, text: String) {
+    private fun startForegroundIfNeeded(
+        title: String,
+        text: String
+    ) {
         if (!serviceForeground) {
-            startForeground(NOTIFICATION_ID, createNotification(title, text))
+            startForeground(
+                FOREGROUND_NOTIFICATION_ID,
+                createNotification(
+                    title = "FocusGuard",
+                    text = "バックグラウンドで監視中",
+                    ongoing = true
+                )
+            )
+
             serviceForeground = true
-        } else {
-            updateNotification(title, text)
         }
     }
 
@@ -676,7 +671,12 @@ class WalkingMonitorService : Service(), SensorEventListener {
         stopSelf()
     }
 
-    private fun createNotification(title: String, text: String): Notification {
+    private fun createNotification(
+        title: String,
+        text: String,
+        ongoing: Boolean
+    ): Notification {
+
         val openAppIntent = Intent(this, MainActivity::class.java)
 
         val pendingIntent = PendingIntent.getActivity(
@@ -691,14 +691,50 @@ class WalkingMonitorService : Service(), SensorEventListener {
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
+            .setOngoing(ongoing)
+            .setAutoCancel(!ongoing)
+            .setOnlyAlertOnce(ongoing)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
     }
 
-    private fun updateNotification(title: String, text: String) {
-        notificationManager.notify(NOTIFICATION_ID, createNotification(title, text))
+    private fun showStartNotification() {
+        notificationManager.notify(
+            START_NOTIFICATION_ID,
+            createNotification(
+                title = "監視を開始しました",
+                text = "歩きスマホの監視を開始しました",
+                ongoing = false
+            )
+        )
+    }
+
+    private fun showAlertNotification(
+        title: String,
+        text: String
+    ) {
+        notificationManager.notify(
+            ALERT_NOTIFICATION_ID,
+            createNotification(
+                title = title,
+                text = text,
+                ongoing = false
+            )
+        )
+    }
+
+    private fun updateForegroundNotification(
+        title: String,
+        text: String
+    ) {
+        notificationManager.notify(
+            FOREGROUND_NOTIFICATION_ID,
+            createNotification(
+                title = title,
+                text = text,
+                ongoing = true
+            )
+        )
     }
 
     private fun createNotificationChannel() {
