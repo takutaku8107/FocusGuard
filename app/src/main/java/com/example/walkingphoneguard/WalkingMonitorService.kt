@@ -145,6 +145,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             }
         )
     }
+    //歩行監視サービスが作られたときに、センサー・位置情報・通知・Bluetoothなどを使えるように準備
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -184,6 +185,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
         return START_STICKY
     }
+    //WalkingMonitorServiceに届いた命令を受け取って、開始・停止・BLE接続・切断を振り分ける
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun startMonitoring() {
@@ -209,6 +211,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         sendSimpleBroadcast(ACTION_MONITORING_STARTED)
         sendStatusUpdate()
     }
+    //歩きスマホ監視を開始する
 
     private fun stopMonitoring() {
         WalkingAppPrefs.setMonitoring(this, false)
@@ -244,6 +247,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
         stopForegroundAndSelf()
     }
+    //歩きスマホ監視を完全に止め、状態やセンサーを初期状態に戻す
 
     override fun onDestroy() {
         super.onDestroy()
@@ -259,6 +263,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         sendAlertOffBroadcast()
         sendStatusUpdate()
     }
+    //WalkingMonitorServiceが終了・破棄されるときの後片付け
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onSensorChanged(event: SensorEvent) {
@@ -304,6 +309,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         handler.removeCallbacks(stopCheckRunnable)
         handler.postDelayed(stopCheckRunnable, STOP_TIMEOUT_MS)
     }
+    //歩数センサーが反応するたびに、歩行が続いているか・警告するべきかを判定
 
     private val stopCheckRunnable = Runnable {
         val now = System.currentTimeMillis()
@@ -321,6 +327,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             sendStatusUpdate()
         }
     }
+    //一定時間「次の一歩」が来なかったら、「歩くのをやめた」と判定する処理
 
     private val vibrationRunnable = object : Runnable {
         @RequiresApi(Build.VERSION_CODES.O)
@@ -331,6 +338,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             }
         }
     }
+    //警告中にスマホを一定間隔で繰り返し振動させる
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
@@ -345,10 +353,12 @@ class WalkingMonitorService : Service(), SensorEventListener {
             sendStatusUpdate()
         }
     }
+    //GPSから位置情報が届くたびに、現在の速度を取得して判定する
 
     private fun startBle() {
         bleManager?.startScan()
     }
+    //Bluetoothデバイスの検索を開始する
 
     private fun updatePostureFromRawTextInService(text: String) {
         WalkingAppPrefs.resetPostureStatsIfNeeded(this)
@@ -364,30 +374,28 @@ class WalkingMonitorService : Service(), SensorEventListener {
         val ay = values[1]
         val az = values[2]
 
-        val totalG =
-            kotlin.math.sqrt(
-                ax * ax +
-                        ay * ay +
-                        az * az
-            )
-
         val rawForwardAngle = Math.toDegrees(
             atan2((-ax).toDouble(), ay.toDouble())
         ).toFloat()
+        //前後の傾きを計算
 
         val rawSideAngle = Math.toDegrees(
             atan2(az.toDouble(), ay.toDouble())
         ).toFloat()
+        //左右の傾きを計算
 
         val baseForwardAngle = WalkingAppPrefs.getBaseForwardAngle(this)
         val baseSideAngle = WalkingAppPrefs.getBaseSideAngle(this)
+        //基準角度を取得
 
         postureForwardAngle = rawForwardAngle - baseForwardAngle
         postureSideAngle = rawSideAngle - baseSideAngle
+        //補正する
 
         updatePostureSeconds()
         checkPostureWarning()
     }
+    //Arduinoから受け取った加速度データ ax, ay, az を使って、首の前後・左右の傾き角度を計算
 
     private fun updatePostureSeconds() {
         val now = System.currentTimeMillis()
@@ -419,6 +427,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             lastPostureCountTime = now
         }
     }
+    //統計画面の時間をカウントして保存
 
     private fun checkPostureWarning() {
         val walkingByBoth = speedWalkingState && shakeWalkingState
@@ -438,6 +447,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         val now = System.currentTimeMillis()
         val warningDelayMs =
             WalkingAppPrefs.getDeviceWarningSeconds(this).toLong() * 1000L
+        //何秒悪い姿勢が続いたら警告するか
 
         if (warningCondition) {
             if (postureBadStartTime == 0L) {
@@ -446,6 +456,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
             if (now - postureBadStartTime >= warningDelayMs && !postureWarningSent) {
                 bleManager?.ledBlink()
+                //BLEデバイス側のLEDを点滅
                 postureWarningSent = true
             }
         } else {
@@ -457,16 +468,19 @@ class WalkingMonitorService : Service(), SensorEventListener {
             }
         }
     }
+    //姿勢が悪い状態が一定時間続いたら、BLEデバイス側のLEDを点滅させるかどうかを判定
 
     private fun stopPostureWarning() {
         postureWarningSent = false
         postureBadStartTime = 0L
         bleManager?.ledOff()
     }
+    //姿勢警告を完全にリセットして、ArduinoのLEDも消す
 
     private fun getWalkingThresholdMs(): Long {
         return WalkingAppPrefs.getWarningSeconds(this).toLong() * 1000L
     }
+    //設定画面で決めた「歩きスマホ警告までの秒数」を取得して、ミリ秒に変換する
 
     private fun hasRequiredPermissions(): Boolean {
         val activityPermission =
@@ -483,6 +497,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
         return activityPermission && locationPermission
     }
+    //歩行監視に必要な権限がちゃんと許可されているか確認
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun startLocationUpdates() {
@@ -501,10 +516,12 @@ class WalkingMonitorService : Service(), SensorEventListener {
             Looper.getMainLooper()
         )
     }
+    //GPSなどの位置情報を定期的に取得し始める
 
     private fun stopLocationUpdates() {
         fusedLocationClient.removeLocationUpdates(locationCallback)
     }
+    //位置情報の継続取得を停止
 
     private fun isScreenOn(): Boolean {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -516,14 +533,17 @@ class WalkingMonitorService : Service(), SensorEventListener {
             powerManager.isScreenOn
         }
     }
+    //スマホの画面がONかOFFか
 
     private fun isWalkLikeSpeed(): Boolean {
         return currentSpeedMps in MIN_WALK_SPEED_MPS..MAX_WALK_SPEED_MPS
     }
+    //現在の移動速度が「人が歩いているっぽい速度の範囲内か」を判定
 
     private fun updateFinalJudgeState() {
         finalJudgeState = shakeWalkingState && speedWalkingState && isScreenOn()
     }
+    //歩きスマホかどうかの最終判定
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun startAlertIfValidSpeed() {
@@ -544,6 +564,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         val title = "歩きスマホ注意！"
         val message = "歩きスマホをやめてください！"
         val todayCount = WalkingAppPrefs.incrementTodayAlertCount(this)
+        //今日の警告回数を1回増やす
 
         if (WalkingAppPrefs.getAlertNotificationEnabled(this)) {
             showAlertNotification(
@@ -551,8 +572,10 @@ class WalkingMonitorService : Service(), SensorEventListener {
                 message
             )
         }
+        //設定画面で「警告通知」がONになっている場合だけ、Androidの通知を出す
 
         sendAlertOnBroadcast(title, message, todayCount)
+        //Broadcastを送る
 
         stopAlertEffects()
 
@@ -560,9 +583,11 @@ class WalkingMonitorService : Service(), SensorEventListener {
             vibrateOnce()
             handler.postDelayed(vibrationRunnable, VIBRATION_INTERVAL_MS)
         }
+        //設定画面の「スマホ振動」がONか確認し、振動
 
         sendStatusUpdate()
     }
+    //実際に「歩きスマホ警告を開始してよいか」を最後に確認して、条件がそろっていたら通知・画面表示・振動を始める
 
     @SuppressLint("SuspiciousIndentation")
     private fun stopAlertEffects() {
@@ -579,6 +604,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
 
         vibrator.cancel()
     }
+    //警告用の繰り返し振動の予約を消して、現在の振動も停止する
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun vibrateOnce() {
@@ -610,6 +636,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             vibrator.vibrate(500L)
         }
     }
+    //スマホを1回だけ「500ミリ秒＝0.5秒」振動
 
     private fun sendStatusUpdate() {
         WalkingAppPrefs.resetPostureStatsIfNeeded(this)
@@ -646,6 +673,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
         intent.setPackage(packageName)
         sendBroadcast(intent)
     }
+    //WalkingMonitorServiceが持っている最新情報をまとめてMainActivityに送る
 
     private fun startForegroundIfNeeded(
         title: String,
@@ -664,12 +692,14 @@ class WalkingMonitorService : Service(), SensorEventListener {
             serviceForeground = true
         }
     }
+    //WalkingMonitorServiceをフォアグラウンドサービスとして動かし始める
 
     private fun stopForegroundAndSelf() {
         serviceForeground = false
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
+    //フォアグラウンドサービスを終了して、WalkingMonitorService自体も停止する
 
     private fun createNotification(
         title: String,
@@ -697,6 +727,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
     }
+    //Androidの通知を1個作って返す
 
     private fun showStartNotification() {
         notificationManager.notify(
@@ -708,6 +739,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             )
         )
     }
+    //「監視を開始しました」通知を表示する
 
     private fun showAlertNotification(
         title: String,
@@ -722,6 +754,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             )
         )
     }
+    //歩きスマホを検知したときに警告通知を表示する
 
     private fun updateForegroundNotification(
         title: String,
@@ -736,6 +769,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             )
         )
     }
+    //すでに表示されている「バックグラウンド監視中」のフォアグラウンド通知の内容を更新する
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -749,6 +783,7 @@ class WalkingMonitorService : Service(), SensorEventListener {
             notificationManager.createNotificationChannel(channel)
         }
     }
+    //Androidで通知を表示するための「通知チャンネル」を作る
 
     private fun sendAlertOnBroadcast(title: String, message: String, count: Int) {
         val intent = Intent(ACTION_ALERT_ON).apply {
@@ -760,28 +795,33 @@ class WalkingMonitorService : Service(), SensorEventListener {
         intent.setPackage(packageName)
         sendBroadcast(intent)
     }
+    //WalkingMonitorServiceからMainActivityに「歩きスマホ警告を表示して！」と知らせる
 
     private fun sendAlertOffBroadcast() {
         sendBroadcast(
             Intent(ACTION_ALERT_OFF).setPackage(packageName)
         )
     }
+    //WalkingMonitorServiceからMainActivityへ「警告画面を消して！」と伝える
 
     private fun sendSimpleBroadcast(action: String) {
         sendBroadcast(
             Intent(action).setPackage(packageName)
         )
     }
+    //追加データを付けずに「○○が起きたよ」という情報だけをBroadcastで送るための共通関数
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     override fun onBind(intent: Intent?): IBinder? = null
 }
+//WalkingMonitorServiceというクラスを作って、「AndroidのService」と「センサーの変化を受け取る機能」を持たせている
 
 data class DailyStat(
     val label: String,
     val count: Int
 )
+//グラフなどで使う『日付と警告回数』を1セットにして保存するためのデータの型
 
 object WalkingAppPrefs {
     private const val PREFS_NAME = "walking_guard_prefs"
@@ -1127,3 +1167,4 @@ object WalkingAppPrefs {
                 ).toInt()
     }
 }
+//アプリの設定・警告回数・姿勢データなどをスマホ内に保存して、あとから読み出す

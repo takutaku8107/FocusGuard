@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "WalkingPhoneGuard"
+rootProject.name = "FocusGuard"
 include(":app")

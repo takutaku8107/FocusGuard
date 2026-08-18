@@ -85,6 +85,7 @@ class BleImuManager(
             ) == PackageManager.PERMISSION_GRANTED
         }
     }
+    //BLEを使うために必要な権限が揃っているか確認
 
     fun isBluetoothEnabled(): Boolean {
         return bluetoothAdapter?.isEnabled == true
@@ -122,6 +123,7 @@ class BleImuManager(
             onStatusChanged("スキャン開始に失敗しました")
         }
     }
+    //BLEデバイス（Arduino）を探すためのスキャンを開始
 
     @SuppressLint("MissingPermission")
     fun stopScan() {
@@ -136,6 +138,7 @@ class BleImuManager(
 
         isScanning = false
     }
+    //BLEデバイスを探すスキャンを停止
 
     @SuppressLint("MissingPermission")
     fun disconnect() {
@@ -156,6 +159,7 @@ class BleImuManager(
         ledCharacteristic = null
         onStatusChanged("未接続")
     }
+    //ArduinoとのBLE接続を完全に切断して、BLE関連の状態をリセット
 
     @SuppressLint("MissingPermission")
     fun sendLedCommand(command: String) {
@@ -188,14 +192,17 @@ class BleImuManager(
             onStatusChanged("LED送信に失敗しました")
         }
     }
+    //スマホからArduinoへ「LEDをどう動かすか」という命令をBLEで送る
 
     fun ledOn() {
         sendLedCommand("1")
     }
+    //LED点灯
 
     fun ledOff() {
         sendLedCommand("0")
     }
+    //LED点滅
 
     fun ledBlink() {
         sendLedCommand("B")
@@ -223,6 +230,7 @@ class BleImuManager(
             onStatusChanged("スキャン失敗: $errorCode")
         }
     }
+    //BLEスキャンで見つかったデバイスを確認して、目的のArduinoだったら接続を開始
 
     @SuppressLint("MissingPermission")
     private fun connectToDevice(result: ScanResult) {
@@ -239,6 +247,7 @@ class BleImuManager(
             onStatusChanged("接続開始に失敗しました")
         }
     }
+    //スキャンで見つけたArduinoに実際にBLE接続を開始
 
     private val gattCallback = object : BluetoothGattCallback() {
         @SuppressLint("MissingPermission")
@@ -353,6 +362,7 @@ class BleImuManager(
             handleCharacteristic(characteristic, value)
         }
     }
+    //「Arduinoとの接続状態の変化」「サービス探索」「通知受信の準備」「実際のデータ受信」までをまとめて受け取るコールバック
 
     @SuppressLint("MissingPermission")
     private fun enableNotification(
@@ -383,6 +393,7 @@ class BleImuManager(
             onStatusChanged("通知設定に失敗しました")
         }
     }
+    //Arduino側の加速度Characteristicから「値が変わったら自動で送ってきてね」という通知（Notification）を有効にする
 
     private fun handleCharacteristic(
         characteristic: BluetoothGattCharacteristic,
@@ -424,4 +435,5 @@ class BleImuManager(
 
         onStatusChanged("受信中...")
     }
+    //ArduinoからBLEで届いた加速度データを文字列として読み取り、AX・AY・AZに分けてアプリ側へ渡す
 }
